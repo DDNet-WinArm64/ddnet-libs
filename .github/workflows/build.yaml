@@ -215,7 +215,7 @@ jobs:
             -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
             -DLWS_WITH_SSL=OFF -DLWS_UNIX_SOCK=OFF -DLWS_WITHOUT_EXTENSIONS=ON -DLWS_WITH_SYS_SMD=OFF
           cmake --build build --parallel
-          cp build/lib/libwebsockets.dll ${DIST_DIR}
+          cp build/bin/libwebsockets.dll ${DIST_DIR}
           gendef ${DIST_DIR}/libwebsockets.dll
           aarch64-w64-mingw32-dlltool -d libwebsockets.def -l ${DIST_DIR}/libwebsockets.lib -D ${DIST_DIR}/libwebsockets.dll
       - name: Build Libpng
