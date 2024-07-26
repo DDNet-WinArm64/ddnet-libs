@@ -72,7 +72,7 @@ jobs:
             -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
             -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
           cmake --build build --parallel
-          cp build/libzlibstatic.a ${MINGW_SYSROOT}/lib/libz.a &&
+          cp build/libzlibstatic.a ${MINGW_SYSROOT}/lib/libz.a
           cp *.h build/*.h ${MINGW_SYSROOT}/include
       - name: Build SDL2
         run: |
@@ -95,6 +95,33 @@ jobs:
           cp lib/.libs/libcurl-4.dll ${DIST_DIR}
           gendef ${DIST_DIR}/libcurl-4.dll
           aarch64-w64-mingw32-dlltool -d libcurl-4.def -l ${DIST_DIR}/curl.lib -D ${DIST_DIR}/libcurl-4.dll
+      - name: Build Libogg
+        run: |
+          cd ${DEPS_DIR}/libogg-1.3.5
+          ./configure --host=aarch64-w64-mingw32 
+          make -j$(nproc) 
+          cp src/.libs/libogg-0.dll ${DIST_DIR} 
+          gendef ${DIST_DIR}/libogg-0.dll 
+          aarch64-w64-mingw32-dlltool -d libogg-0.def -l ${DIST_DIR}/ogg.lib -D ${DIST_DIR}/libogg-0.dll
+      - name: Build Opus
+        run: |
+          cd ${DEPS_DIR}/opus-1.3.1
+          ./configure --host=aarch64-w64-mingw32 CFLAGS=-D_FORTIFY_SOURCE=0 
+          make -j$(nproc) 
+          cp .libs/libopus-0.dll ${DIST_DIR} 
+          gendef ${DIST_DIR}/libopus-0.dll 
+          aarch64-w64-mingw32-dlltool -d libopus-0.def -l ${DIST_DIR}/opus.lib -D ${DIST_DIR}/libopus-0.dll
+      - name: Build Opusfile
+        run: |
+          cd ${DEPS_DIR}/opusfile-0.12
+          env DEPS_LIBS="-lopus -logg -L${DIST_DIR}" \
+              DEPS_CFLAGS="-I${DEPS_DIR}/opus-1.3.1/include -I${DEPS_DIR}/libogg-1.3.5/include" \
+              ./configure --host=aarch64-w64-mingw32 --disable-http 
+          make -j$(nproc) 
+          cp .libs/libopusfile-0.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libopusfile-0.dll 
+          aarch64-w64-mingw32-dlltool -d libopusfile-0.def -l ${DIST_DIR}/opusfile.lib -D ${DIST_DIR}/libopusfile-0.dll
+
       
       
 
