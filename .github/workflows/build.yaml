@@ -23,6 +23,8 @@ jobs:
           echo CXX=aarch64-w64-mingw32-clang++ >> $GITHUB_ENV
           echo RC=aarch64-w64-mingw32-windres >> $GITHUB_ENV
           echo AR=aarch64-w64-mingw32-ar >> $GITHUB_ENV
+          echo AS=aarch64-w64-mingw32-as >> $GITHUB_ENV
+          echo RANLIB=aarch64-w64-mingw32-ranlib >> $GITHUB_ENV
           echo MINGW_SYSROOT=$(realpath llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64/aarch64-w64-mingw32) >> $GITHUB_ENV
       - name: Download All Dependencies
         run: |
@@ -39,6 +41,7 @@ jobs:
            wget https://github.com/warmcat/libwebsockets/archive/v4.3-stable.tar.gz
            wget https://download.sourceforge.net/libpng/libpng-1.6.43.tar.gz
            wget https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz
+           wget https://github.com/google/brotli/archive/refs/tags/v1.1.0.tar.gz
            mkdir -p deps
            cd deps
            tar xvf ../SDL2-2.30.5.tar.gz
@@ -53,10 +56,36 @@ jobs:
            tar xvf ../v4.3-stable.tar.gz
            tar xvf ../libpng-1.6.43.tar.gz
            tar xvf ../zlib-1.3.1.tar.gz
+           tar xvf ../v1.1.0.tar.gz
            cd ..
            mkdir -p dist
            echo "DEPS_DIR=$(realpath deps)" >> $GITHUB_ENV
            echo "DIST_DIR=$(realpath dist)" >> $GITHUB_ENV
+      - name: Build Brotli
+        run: |
+          cd ${DEPS_DIR}/brotli-1.1.0
+          cmake -G Ninja -S . -B out -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_SYSROOT=${MINGW_SYSROOT} \
+            -DCMAKE_C_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-clang \
+            -DCMAKE_CXX_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-clang++ \
+            -DCMAKE_RC_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-windres \
+            -DCMAKE_AR=${MINGW_ROOT}/bin/aarch64-w64-mingw32-ar \
+            -DCMAKE_RANLIB=${MINGW_ROOT}/bin/aarch64-w64-mingw32-ranlib \
+            -DCMAKE_C_FLAGS="-w" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+            -DCMAKE_INSTALL_PREFIX=${MINGW_SYSROOT}
+          cmake --build out --parallel
+          cmake --install out --prefix ${MINGW_SYSROOT}
+          cp out/libbrotlicommon.dll  out/libbrotlidec.dll   out/libbrotlienc.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libbrotlicommon.dll
+          gendef ${DIST_DIR}/libbrotlidec.dll
+          gendef ${DIST_DIR}/libbrotlienc.dll
+          aarch64-w64-mingw32-dlltool -d libbrotlicommon.def -l ${DIST_DIR}/brotlicommon.lib -D ${DIST_DIR}/libbrotlicommon.dll
+          aarch64-w64-mingw32-dlltool -d libbrotlidec.def -l ${DIST_DIR}/brotlidec.lib -D ${DIST_DIR}/libbrotlidec.dll
+          aarch64-w64-mingw32-dlltool -d libbrotlienc.def -l ${DIST_DIR}/brotlienc.lib -D ${DIST_DIR}/libbrotlienc.dll
       - name: Build Zlib
         run: |
           cd ${DEPS_DIR}/zlib-1.3.1
@@ -121,7 +150,54 @@ jobs:
           cp .libs/libopusfile-0.dll ${DIST_DIR}
           gendef ${DIST_DIR}/libopusfile-0.dll 
           aarch64-w64-mingw32-dlltool -d libopusfile-0.def -l ${DIST_DIR}/opusfile.lib -D ${DIST_DIR}/libopusfile-0.dll
-
+      - name: Build Freetype
+        run: |
+          cd ${DEPS_DIR}/freetype-2.13.2
+          ./configure --host=aarch64-w64-mingw32 \
+            --prefix=${MINGW_SYSROOT} \
+            CPPFLAGS="-I${MINGW_SYSROOT}/include" \
+            LDFLAGS="-L${MINGW_SYSROOT}/lib" \
+            --with-png=no --with-bzip2=no --with-zlib=no --with-harfbuzz=no
+          make -j$(nproc)
+          cp objs/.libs/libfreetype-6.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libfreetype-6.dll
+          aarch64-w64-mingw32-dlltool -d libfreetype-6.def -l ${DIST_DIR}/freetype.lib -D ${DIST_DIR}/libfreetype-6.dll
+      - name: Build SQLite
+        run: |
+          cd ${DEPS_DIR}/sqlite-autoconf-3460000
+          export lt_cv_deplibs_check_method='pass_all'
+          ./configure --host=aarch64-w64-mingw32 CFLAGS=-DSQLITE_OMIT_LOAD_EXTENSION
+          make -j$(nproc)
+          cp .libs/libsqlite3-0.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libsqlite3-0.dll
+          aarch64-w64-mingw32-dlltool -d libsqlite3-0.def -l ${DIST_DIR}/sqlite3.lib -D ${DIST_DIR}/libsqlite3-0.dll
+      - name: Build x264
+        run: |
+          cd ${DEPS_DIR}/x264-master
+          env CFLAGS="-I${MINGW_SYSROOT}/include" \
+            LDFLAGS="-L${MINGW_SYSROOT}/lib" \
+            ./configure --enable-static --disable-cli --disable-gpl --disable-avs --disable-swscale --disable-lavf --disable-ffms \
+            --disable-gpac --disable-lsmash --disable-interlaced --host=aarch64-mingw32 \
+            --prefix=${MINGW_SYSROOT} \
+            --cross-prefix=aarch64-w64-mingw32-
+          make -j$(nproc)
+          echo "X264_ROOT=$(realpath .)" >> $GITHUB_ENV
+      - name: Build FFmpeg
+        run: |
+          cd ${DEPS_DIR}/ffmpeg-7.0.1
+          env PKG_CONFIG_PATH=${X264_ROOT} \
+            ./configure --disable-all --disable-alsa --disable-iconv --disable-libxcb \
+            --disable-libxcb-shape --disable-libxcb-xfixes --disable-sdl2 --disable-xlib \
+            --disable-zlib --enable-avcodec --enable-avformat --enable-encoder=libx264,aac \
+            --enable-muxer=mp4,mov --enable-protocol=file --enable-libx264 --enable-swresample \
+            --enable-swscale --enable-gpl --extra-cflags="-I${X264_ROOT}" \
+            --extra-cxxflags="-I${X264_ROOT}" \
+            --extra-ldflags="-L${X264_ROOT}" \
+            --arch=aarch64 --target_os=mingw32 --cross-prefix=aarch64-w64-mingw32- \
+            --disable-static --enable-shared --extra-libs="-lpthread -lm" --pkg-config-flags="--static" \
+            --pkg-config=pkg-config
+          make -j$(nproc)
+          cp **/*.dll **/*.lib ${DIST_DIR}
       
       
 
