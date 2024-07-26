@@ -258,7 +258,7 @@ jobs:
 
           rm -rf $DDNET_LIBS_PATH/opus/windows/libarm64
           mkdir -p $DDNET_LIBS_PATH/opus/windows/libarm64
-          cp ${DIST_DIR}/libogg*.dll ${DIST_DIR}/libopus*.dll ${DIST_DIR}/libwinpthread*.dll ${DIST_DIR}/ogg.lib ${DIST_DIR}/opus.lib ${DIST_DIR}/opusfile.lib $DDNET_LIBS_PATH/opus/windows/libarm64
+          cp ${DIST_DIR}/libogg*.dll ${DIST_DIR}/libopus*.dll ${MINGW_SYSROOT}/bin/libwinpthread*.dll ${DIST_DIR}/ogg.lib ${DIST_DIR}/opus.lib ${DIST_DIR}/opusfile.lib $DDNET_LIBS_PATH/opus/windows/libarm64
 
           rm -rf $DDNET_LIBS_PATH/png/windows/libarm64
           mkdir -p $DDNET_LIBS_PATH/png/windows/libarm64
