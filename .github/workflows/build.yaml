@@ -282,7 +282,7 @@ jobs:
 
           echo "DDNET_LIBS_PATH=$DDNET_LIBS_PATH" >> $GITHUB_ENV
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ddnet-libs-windows-arm64-llvm-ucrt
           path: ${{ env.DDNET_LIBS_PATH }}
