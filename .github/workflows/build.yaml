@@ -221,7 +221,8 @@ jobs:
       - name: Build Libpng
         run: |
           cd ${DEPS_DIR}/libpng-1.6.43
-          env CFLAGS="-I${MINGW_SYSROOT}/include" \
+          export lt_cv_deplibs_check_method='pass_all'
+          env CFLAGS="-I${MINGW_SYSROOT}/include"  \
             LDFLAGS="-L${MINGW_SYSROOT}/lib" ./configure --host=aarch64-w64-mingw32
           make -j$(nproc)
           cp .libs/libpng16-16.dll ${DIST_DIR}
