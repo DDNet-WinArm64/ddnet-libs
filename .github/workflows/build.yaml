@@ -236,6 +236,8 @@ jobs:
           aarch64-w64-mingw32-dlltool -d vulkan-1.def -l ${DIST_DIR}/vulkan-1.lib -D ${DIST_DIR}/vulkan-1.dll
       - name: Package
         run: |
+          for i in ${DIST_DIR}/*.dll; do aarch64-w64-mingw32-strip $i; done
+
           wget https://github.com/ddnet/ddnet-libs/archive/refs/heads/master.zip
           unzip master.zip
           export DDNET_LIBS_PATH=$(realpath ddnet-libs-master)
