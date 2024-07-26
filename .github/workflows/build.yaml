@@ -57,6 +57,23 @@ jobs:
            mkdir -p dist
            echo "DEPS_DIR=$(realpath deps)" >> $GITHUB_ENV
            echo "DIST_DIR=$(realpath dist)" >> $GITHUB_ENV
+      - name: Build Zlib
+        run: |
+          cd ${DEPS_DIR}/zlib-1.3.1
+          cmake -G Ninja -S . -B build -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_SYSROOT=${MINGW_SYSROOT} \
+            -DCMAKE_C_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-clang \
+            -DCMAKE_RC_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-windres \
+            -DCMAKE_AR=${MINGW_ROOT}/bin/aarch64-w64-mingw32-ar \
+            -DCMAKE_RANLIB=${MINGW_ROOT}/bin/aarch64-w64-mingw32-ranlib \
+            -DCMAKE_C_FLAGS="-w" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+          cmake --build build --parallel
+          cp build/libzlibstatic.a ${MINGW_SYSROOT}/lib/libz.a &&
+          cp *.h build/*.h ${MINGW_SYSROOT}/include
       - name: Build SDL2
         run: |
           cd ${DEPS_DIR}/SDL2-2.30.5
@@ -65,6 +82,20 @@ jobs:
           cp build/.libs/SDL2.dll ${DIST_DIR}
           gendef ${DIST_DIR}/SDL2.dll
           aarch64-w64-mingw32-dlltool -d SDL2.def -l ${DIST_DIR}/SDL2.lib -D ${DIST_DIR}/SDL2.dll
+      - name: Build cURL
+        run: |
+          cd ${DEPS_DIR}/curl-8.8.0
+          env lt_cv_deplibs_check_method='pass_all' \
+            ./configure --host=aarch64-w64-mingw32 --with-schannel \
+            --enable-shared --disable-dict --disable-gopher \
+            --disable-imap --disable-pop3 --disable-rtsp \
+            --disable-smtp --disable-telnet --disable-tftp \
+            --disable-smb --disable-ldap --enable-file --disable-static
+          make -j$(nproc)
+          cp lib/.libs/libcurl-4.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libcurl-4.dll
+          aarch64-w64-mingw32-dlltool -d libcurl-4.def -l ${DIST_DIR}/curl.lib -D ${DIST_DIR}/libcurl-4.dll
+      
       
 
 
