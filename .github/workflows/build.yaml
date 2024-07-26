@@ -23,6 +23,7 @@ jobs:
           echo CXX=aarch64-w64-mingw32-clang++ >> $GITHUB_ENV
           echo RC=aarch64-w64-mingw32-windres >> $GITHUB_ENV
           echo AR=aarch64-w64-mingw32-ar >> $GITHUB_ENV
+          echo MINGW_SYSROOT=$(realpath llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64/aarch64-w64-mingw32) >> $GITHUB_ENV
       - name: Download All Dependencies
         run: |
            wget http://libsdl.org/release/SDL2-2.30.5.tar.gz
@@ -52,6 +53,18 @@ jobs:
            tar xvf ../v4.3-stable.tar.gz
            tar xvf ../libpng-1.6.43.tar.gz
            tar xvf ../zlib-1.3.1.tar.gz
+           cd ..
+           mkdir -p dist
+           echo "DEPS_DIR=$(realpath deps)" >> $GITHUB_ENV
+           echo "DIST_DIR=$(realpath dist)" >> $GITHUB_ENV
+      - name: Build SDL2
+        run: |
+          cd ${DEPS_DIR}/SDL2-2.30.5
+          ./configure --host=aarch64-w64-mingw32 --enable-ime 
+          make -j$(nproc)
+          cp build/.libs/SDL2.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/SDL2.dll
+          aarch64-w64-mingw32-dlltool -d SDL2.def -l ${DIST_DIR}/SDL2.lib -D ${DIST_DIR}/SDL2.dll
       
 
 
