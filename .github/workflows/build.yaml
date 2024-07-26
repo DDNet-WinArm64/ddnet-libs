@@ -12,7 +12,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get upgrade -y
-          sudo apt-get install -y build-essential cmake ninja-build curl wget pkg-config
+          sudo apt-get install -y build-essential cmake ninja-build curl wget pkg-config unzip
       - name: Install MinGW
         run: |
           wget https://github.com/mstorsjo/llvm-mingw/releases/download/20240619/llvm-mingw-20240619-ucrt-ubuntu-20.04-x86_64.tar.xz
@@ -76,16 +76,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
             -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-            -DCMAKE_INSTALL_PREFIX=${MINGW_SYSROOT}
+            -DCMAKE_INSTALL_PREFIX=${MINGW_SYSROOT} \
+            -DBUILD_SHARED_LIBS=Off
           cmake --build out --parallel
           cmake --install out --prefix ${MINGW_SYSROOT}
-          cp out/libbrotlicommon.dll  out/libbrotlidec.dll   out/libbrotlienc.dll ${DIST_DIR}
-          gendef ${DIST_DIR}/libbrotlicommon.dll
-          gendef ${DIST_DIR}/libbrotlidec.dll
-          gendef ${DIST_DIR}/libbrotlienc.dll
-          aarch64-w64-mingw32-dlltool -d libbrotlicommon.def -l ${DIST_DIR}/brotlicommon.lib -D ${DIST_DIR}/libbrotlicommon.dll
-          aarch64-w64-mingw32-dlltool -d libbrotlidec.def -l ${DIST_DIR}/brotlidec.lib -D ${DIST_DIR}/libbrotlidec.dll
-          aarch64-w64-mingw32-dlltool -d libbrotlienc.def -l ${DIST_DIR}/brotlienc.lib -D ${DIST_DIR}/libbrotlienc.dll
       - name: Build Zlib
         run: |
           cd ${DEPS_DIR}/zlib-1.3.1
@@ -198,6 +192,95 @@ jobs:
             --pkg-config=pkg-config
           make -j$(nproc)
           cp **/*.dll **/*.lib ${DIST_DIR}
+      - name: Build Libwebsockets
+        run: |
+          cd ${DEPS_DIR}/libwebsockets-4.3-stable
+          cmake -G Ninja -S . -B build -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_SYSROOT=${MINGW_SYSROOT} \
+            -DCMAKE_C_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-clang \
+            -DCMAKE_CXX_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-clang++ \
+            -DCMAKE_RC_COMPILER=${MINGW_ROOT}/bin/aarch64-w64-mingw32-windres \
+            -DCMAKE_AR=${MINGW_ROOT}/bin/aarch64-w64-mingw32-ar \
+            -DCMAKE_RANLIB=${MINGW_ROOT}/bin/aarch64-w64-mingw32-ranlib \
+            -DCMAKE_C_FLAGS="-w" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+            -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+            -DLWS_WITH_SSL=OFF -DLWS_UNIX_SOCK=OFF -DLWS_WITHOUT_EXTENSIONS=ON -DLWS_WITH_SYS_SMD=OFF
+          cmake --build build --parallel
+          cp build/lib/libwebsockets.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libwebsockets.dll
+          aarch64-w64-mingw32-dlltool -d libwebsockets.def -l ${DIST_DIR}/libwebsockets.lib -D ${DIST_DIR}/libwebsockets.dll
+      - name: Build Libpng
+        run: |
+          cd ${DEPS_DIR}/libpng-1.6.43
+          env CFLAGS="-I${MINGW_SYSROOT}/include" \
+            LDFLAGS="-L${MINGW_SYSROOT}/lib" ./configure --host=aarch64-w64-mingw32
+          make -j$(nproc)
+          cp .libs/libpng16-16.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libpng16-16.dll
+          aarch64-w64-mingw32-dlltool -d libpng16-16.def -l ${DIST_DIR}/libpng16-16.lib -D ${DIST_DIR}/libpng16-16.dll
+      - name: Download VulkanRT
+        run: |
+          wget https://sdk.lunarg.com/sdk/download/1.3.290.0/warm/VulkanRT-1.3.290.0-Components.zip && \
+          unzip VulkanRT-1.3.290.0-Components.zip && \
+          cp VulkanRT-1.3.290.0-Components/vulkan-1.* ${DIST_DIR} && \
+          gendef ${DIST_DIR}/vulkan-1.dll && \
+          aarch64-w64-mingw32-dlltool -d vulkan-1.def -l ${DIST_DIR}/vulkan-1.lib -D ${DIST_DIR}/vulkan-1.dll
+      - name: Package
+        run: |
+          wget https://github.com/ddnet/ddnet-libs/archive/refs/heads/master.zip
+          unzip master.zip
+          export DDNET_LIBS_PATH=$(realpath ddnet-libs-master)
+
+          rm -rf $DDNET_LIBS_PATH/curl/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/curl/windows/libarm64
+          cp ${DIST_DIR}/libcurl*.dll ${DIST_DIR}/curl.lib $DDNET_LIBS_PATH/curl/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/ffmpeg/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/ffmpeg/windows/libarm64
+          cp ${DIST_DIR}/av*.dll ${DIST_DIR}/sw*.dll ${DIST_DIR}/av*.lib ${DIST_DIR}/sw*.lib $DDNET_LIBS_PATH/ffmpeg/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/freetype/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/freetype/windows/libarm64
+          cp ${DIST_DIR}/libfreetype*.dll ${DIST_DIR}/freetype.lib $DDNET_LIBS_PATH/freetype/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/opus/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/opus/windows/libarm64
+          cp ${DIST_DIR}/libogg*.dll ${DIST_DIR}/libopus*.dll ${DIST_DIR}/libwinpthread*.dll ${DIST_DIR}/ogg.lib ${DIST_DIR}/opus.lib ${DIST_DIR}/opusfile.lib $DDNET_LIBS_PATH/opus/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/png/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/png/windows/libarm64
+          cp ${DIST_DIR}/libpng*.dll ${DIST_DIR}/libpng*.lib $DDNET_LIBS_PATH/png/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/sdl/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/sdl/windows/libarm64
+          cp ${DIST_DIR}/SDL2.dll ${DIST_DIR}/SDL2.lib $DDNET_LIBS_PATH/sdl/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/sqlite3/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/sqlite3/windows/libarm64
+          cp ${DIST_DIR}/libsqlite3*.dll ${DIST_DIR}/sqlite3.lib $DDNET_LIBS_PATH/sqlite3/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/websockets/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/websockets/windows/libarm64
+          cp ${DIST_DIR}/libwebsockets.dll ${DIST_DIR}/libwebsockets.lib $DDNET_LIBS_PATH/websockets/windows/libarm64
+
+          rm -rf $DDNET_LIBS_PATH/vulkan/windows/libarm64
+          mkdir -p $DDNET_LIBS_PATH/vulkan/windows/libarm64
+          cp ${DIST_DIR}/vulkan-1.* $DDNET_LIBS_PATH/vulkan/windows/libarm64
+
+          echo "DDNET_LIBS_PATH=$DDNET_LIBS_PATH" >> $GITHUB_ENV
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: ddnet-libs-windows-arm64-llvm-ucrt
+          path: ${{ env.DDNET_LIBS_PATH }}
+          compression-level: 9
+
+
+
+
       
       
 
