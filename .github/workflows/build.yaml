@@ -76,10 +76,16 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
             -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-            -DCMAKE_INSTALL_PREFIX=${MINGW_SYSROOT} \
-            -DBUILD_SHARED_LIBS=Off
+            -DCMAKE_INSTALL_PREFIX=${MINGW_SYSROOT}
           cmake --build out --parallel
           cmake --install out --prefix ${MINGW_SYSROOT}
+          cp out/libbrotlicommon.dll out/libbrotlidec.dll out/libbrotlienc.dll ${DIST_DIR}
+          gendef ${DIST_DIR}/libbrotlicommon.dll
+          gendef ${DIST_DIR}/libbrotlidec.dll
+          gendef ${DIST_DIR}/libbrotlienc.dll
+          aarch64-w64-mingw32-dlltool -d libbrotlicommon.def -l ${DIST_DIR}/brotlicommon.lib -D ${DIST_DIR}/libbrotlicommon.dll
+          aarch64-w64-mingw32-dlltool -d libbrotlidec.def -l ${DIST_DIR}/brotlidec.lib -D ${DIST_DIR}/libbrotlidec.dll
+          aarch64-w64-mingw32-dlltool -d libbrotlienc.def -l ${DIST_DIR}/brotlienc.lib -D ${DIST_DIR}/libbrotlienc.dll
       - name: Build Zlib
         run: |
           cd ${DEPS_DIR}/zlib-1.3.1
@@ -237,6 +243,7 @@ jobs:
           rm -rf $DDNET_LIBS_PATH/curl/windows/libarm64
           mkdir -p $DDNET_LIBS_PATH/curl/windows/libarm64
           cp ${DIST_DIR}/libcurl*.dll ${DIST_DIR}/curl.lib $DDNET_LIBS_PATH/curl/windows/libarm64
+          cp ${DIST_DIR}/libbrotli*.dll ${DIST_DIR}/brotli*.lib $DDNET_LIBS_PATH/curl/windows/libarm64
 
           rm -rf $DDNET_LIBS_PATH/ffmpeg/windows/libarm64
           mkdir -p $DDNET_LIBS_PATH/ffmpeg/windows/libarm64
